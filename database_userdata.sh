@@ -1,11 +1,14 @@
 #!/bin/bash -xe
 exec > /tmp/userdata.log 2>&1
 
-apt update
+apt update -y
 apt install mysql-server -y
 
 # Esperar a que MySQL esté completamente activo para que no nos de problemas a la hora de conectarnos 
 sleep 5
+
+# Habilitamos mysql
+systemctl enable mysql
 
 # Ejecutar comandos SQL
 mysql << EOF

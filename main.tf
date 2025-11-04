@@ -72,10 +72,34 @@ resource "aws_vpc_security_group_ingress_rule" "db" {
   ip_protocol                  = "TCP"
   security_group_id            = aws_security_group.db.id
 }
+
+// Creamos una nueva instancia 
+resource "aws_security_group" "nuevaInstancia" {
+  name        = "nuevaInstancia"
+  description = "NuevaInstancia: allow SSH from anywhere"
+}
+
+// Nueva regla para el grupo de seguridad
+resource "aws_vpc_security_group_ingress_rule" "nuevaReglaNuevaInstancia" {
+  cidr_ipv4         = "0.0.0.0/0"
+  to_port           = 22
+  from_port         = 22
+  ip_protocol       = "TCP"
+  security_group_id = aws_security_group.nuevaInstancia.id
+}
+// Regla para conectar el nuevo grupo con el grupo que teniamos antes 
+resource "aws_vpc_security_group_ingress_rule" "web_ssh_from_nuevaInstancia" {
+  referenced_security_group_id = aws_security_group.nuevaInstancia.id
+  to_port                      = 22
+  from_port                    = 22
+  ip_protocol                  = "TCP"
+  security_group_id            = aws_security_group.ssh.id
+}
+
 // Creamos la instancia del servidor
 resource "aws_instance" "webserver" {
-  ami                    = "ami-0360c520857e3138f"
-  instance_type          = "t2.small"
+  ami                    = "ami-0360c520857e3138f" // ami = "ami-0fc5d935ebf8bc3bc"
+  instance_type          = "t2.small" // "t2.large"
   key_name               = "vockey"
   vpc_security_group_ids = [aws_security_group.ssh.id, aws_security_group.all.id, aws_security_group.http.id, aws_security_group.wsmysql.id]
   tags = {
@@ -97,8 +121,8 @@ resource "aws_instance" "webserver" {
 
 // Creamos la instancia de la base de datos
 resource "aws_instance" "dbserver" {
-  ami                    = "ami-0360c520857e3138f"
-  instance_type          = "t2.small"
+  ami                    = "ami-0360c520857e3138f"// ami = "ami-0fc5d935ebf8bc3bc"
+  instance_type          = "t2.small" // "t2.large"
   key_name               = "vockey"
   vpc_security_group_ids = [aws_security_group.ssh.id, aws_security_group.all.id, aws_security_group.db.id]
   tags = {
@@ -108,6 +132,34 @@ resource "aws_instance" "dbserver" {
   user_data_replace_on_change = true
 }
 // Despues de crear el database_userdata.sh creamos la instancia de nuestro servidor de base de datos
+
+resource "aws_instance" "nuevaInstancia" {
+  ami           = "ami-XXXXXXXXXXXX" // ami = "ami-0fc5d935ebf8bc3bc"
+  instance_type = "t2.small"// "t2.large"
+  key_name      = "vockey"
+  vpc_security_group_ids = [aws_security_group.nuevaInstancia.id]
+  tags = {
+    "Name" = "NuevaInstancia"
+  }
+}
+
+
+//  ASOCIACIÓN DE IP ELÁSTICA PARA WEBSERVER
+
+
+// Creamos una IP elástica reservada para el servidor web
+resource "aws_eip" "web_eip" {
+  domain = "vpc"
+  tags = {
+    "Name" = "WebServer-EIP"
+  }
+}
+
+// Asociamos esa IP elástica al webserver (para que nunca cambie)
+resource "aws_eip_association" "web_eip_assoc" {
+  instance_id   = aws_instance.webserver.id
+  allocation_id = aws_eip.web_eip.id
+}
 
 
 // Una vez creado vamos a la instancia y nos conectamos y comprobamos que está el servicio corriendo --> sudo systemctl status mysql.service
@@ -135,3 +187,4 @@ resource "aws_instance" "dbserver" {
 // Como conectar el servidor web a al servidorDB 
 // Volvemos a la instancia de del servidor de la base de datos y volvemos a conectarnos 
 // Para conectarnos desde el servidor de base de datos --> mysql -u webuser -p -h 172.31.30.158 -P 3306
+
